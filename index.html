@@ -46,6 +46,8 @@ body{min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,#0d0d1a,
 .time-sub{font-size:11px;color:rgba(240,230,208,0.4);letter-spacing:1px}
 .bell-ind{font-size:28px;display:block;margin-top:8px;opacity:0.3;transition:all 0.3s}
 .bell-ind.ding{opacity:1;filter:drop-shadow(0 0 12px #E8B86D);animation:shake 0.4s ease}
+.btn-done{margin-top:16px;padding:13px 40px;border-radius:50px;border:2px solid #E8B86D;background:rgba(232,184,109,0.15);color:#E8B86D;font-size:15px;font-family:inherit;letter-spacing:2px;cursor:pointer;touch-action:manipulation;text-transform:uppercase}
+.btn-done:active{background:rgba(232,184,109,0.35)}
 .step-lbl{font-size:11px;color:rgba(240,230,208,0.3);letter-spacing:1px;margin-top:4px}
 .count-big{font-size:64px;font-weight:100}
 .count-of{font-size:12px;color:rgba(240,230,208,0.4)}
@@ -100,6 +102,7 @@ body{min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,#0d0d1a,
     <span class="bell-ind" id="bell-timer">&#128276;</span>
   </div>
   <div class="step-lbl" id="t-lbl"></div>
+  <button class="btn-done" id="btn-done" style="display:none" onclick="skipStep()">Done &#10003;</button>
 </div>
 
 <!-- OM CHANTING STEP -->
@@ -123,13 +126,13 @@ body{min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,#0d0d1a,
       </div>
     </div>
     <div id="c-gap" class="gap-box" style="display:none">
-      <div class="gap-lbl">Next in</div>
+      <div class="gap-lbl">Count in</div>
       <div class="gap-num" id="c-gap-num" style="color:#C8849A">30</div>
     </div>
-    <div id="c-hint" class="tap-hint" style="color:#C8849A">&#9711; Tap to chant OM</div>
+    <div id="c-hint" class="tap-hint" style="color:#C8849A">Preparing...</div>
     <span class="bell-ind" id="bell-count">&#128276;</span>
   </div>
-  <button class="btn-count" id="btn-count">Chant OM</button>
+  <button class="btn-count" id="btn-count" style="display:none">Chant OM</button>
   <div class="step-lbl" id="c-lbl"></div>
 </div>
 
@@ -192,11 +195,11 @@ var SEQ = [
   { name:'Patangasana',     san:'\u092a\u0924\u0902\u0917\u093e\u0938\u0928',     sub:'Kite Pose',          dur:120,  icon:'\uD83E\uDD8B', col:'#E8B86D' },
   { name:'Shishupalasana',  san:'\u0936\u093f\u0936\u0941\u092a\u093e\u0932\u093e\u0938\u0928', sub:'Right Leg',          dur:120,  icon:'\uD83C\uDF3F', col:'#7EB88A' },
   { name:'Shishupalasana',  san:'\u0936\u093f\u0936\u0941\u092a\u093e\u0932\u093e\u0938\u0928', sub:'Left Leg',           dur:120,  icon:'\uD83C\uDF3F', col:'#7EB88A' },
-  { name:'Meditation',      san:'\u0927\u094D\u092F\u093E\u0928',                   sub:'Rest - 12 minutes',  dur:720,  icon:'\uD83C\uDF19', col:'#7B9EC8' },
+  { name:'Nadivibhajana',   san:'\u0928\u093E\u0921\u0940 \u0935\u093F\u092D\u093E\u091C\u0928', sub:'8 minutes',          dur:480,  icon:'\uD83C\uDF19', col:'#7B9EC8' },
   { name:'Sukhasana',       san:'\u0938\u0941\u0916\u093E\u0938\u0928',             sub:'Easy Pose - 7 min',  dur:420,  icon:'\u2600\uFE0F', col:'#E8B86D' },
-  { name:'OM Chanting',     san:'\u0950',                                               sub:'21 times, 30s gap',  dur:null, icon:'\uD83D\uDEBD', col:'#C8849A', om:true },
+  { name:'OM Chanting',     san:'\u0950',                                               sub:'21 times, 30s gap',  dur:null, icon:'\uD83D\uDEBD', col:'#C8849A', om:true, auto:true },
   { name:'Vipareeta Swasa', san:'\u0935\u093F\u092A\u0930\u0940\u0924 \u0936\u094D\u0935\u093E\u0938', sub:'Reverse Breathing',  dur:180,  icon:'\uD83C\uDF2C\uFE0F', col:'#9E7EC8' },
-  { name:'Meditation',      san:'\u0927\u094D\u092F\u093E\u0928',                   sub:'Rest - 2 minutes',   dur:120,  icon:'\uD83C\uDF19', col:'#7B9EC8' },
+  
   { name:'Meditation',      san:'\u0927\u094D\u092F\u093E\u0928',                   sub:'Rest - 7 minutes',   dur:420,  icon:'\uD83C\uDF19', col:'#7B9EC8' }
 ];
 
@@ -270,6 +273,7 @@ function startTimer(s, idx) {
   document.getElementById('t-san').textContent = s.san;
   document.getElementById('t-sub').textContent = s.sub;
   document.getElementById('t-lbl').textContent = 'Step ' + (idx+1) + ' of ' + SEQ.length;
+  document.getElementById('btn-done').style.display = (idx === 3) ? 'block' : 'none';
   timeLeft = s.dur;
   document.getElementById('t-time').textContent = fmt(timeLeft);
   setRing('progress-ring', 1, s.col);
@@ -316,6 +320,11 @@ function beginGap(idx) {
       document.getElementById('btn-count').textContent = 'Chant OM ' + cNum;
     }
   }, 1000);
+}
+
+function skipStep() {
+  clearInterval(ticker);
+  goStep(step + 1);
 }
 
 function doCount() {
