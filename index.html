@@ -77,7 +77,7 @@ body{min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,#0d0d1a,
   <p class="total" id="total-time"></p>
   <button class="btn-main" id="btn-begin">Begin</button>
   <button class="btn-test" id="btn-test">&#128276; Test Bell</button>
-  <button class="btn-test" id="btn-step6" style="margin-top:10px;border-color:rgba(200,132,154,0.7);color:#C8849A">&#x0950; Test Step 6</button>
+  <button class="btn-test" id="btn-step6" style="margin-top:10px;border-color:rgba(200,132,154,0.7);color:#C8849A">&#x0950; Test AUM Step</button>
 </div>
 
 <!-- TIMER STEP -->
@@ -111,7 +111,7 @@ body{min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,#0d0d1a,
   <div class="dots" id="dots-count"></div>
   <div class="card">
     <span class="card-icon" style="font-size:56px;color:#C8849A">&#x0950;</span>
-    <h2 class="card-name" style="color:#C8849A">OM Chanting</h2>
+    <h2 class="card-name" style="color:#C8849A">AUM Chanting</h2>
     <p class="card-san">&#x0950;</p>
     <p class="card-sub" style="margin-bottom:20px">21 times with 30s gap</p>
     <div class="ring-wrap">
@@ -191,6 +191,39 @@ function bell() {
   });
 }
 
+// ── KEEP ALIVE (prevents browser throttling when screen off) ──
+// Plays a silent buffer every second to keep AudioContext active
+// This is the ONLY reliable way to keep JS timers running on Android
+var keepAliveNode = null;
+
+function startKeepAlive() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') ctx.resume();
+  // Schedule a silent 1-sample buffer to repeat every second
+  // This tricks Android into thinking audio is active -> no throttling
+  function scheduleSilence() {
+    if (!ctx) return;
+    var buf = ctx.createBuffer(1, 1, ctx.sampleRate);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var gain = ctx.createGain();
+    gain.gain.value = 0.001; // near-silent
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(ctx.currentTime);
+    src.onended = function() {
+      setTimeout(scheduleSilence, 900);
+    };
+  }
+  scheduleSilence();
+  console.log('KeepAlive started');
+}
+
+function stopKeepAlive() {
+  // Nothing to explicitly stop - just let it fade
+  // It will naturally stop after a few cycles when we don't restart
+}
+
 // ── SEQUENCE ──────────────────────────────────────────────────
 var SEQ = [
   { name:'Patangasana',     san:'\u092a\u0924\u0902\u0917\u093e\u0938\u0928',     sub:'Kite Pose',          dur:150,  icon:'\uD83E\uDD8B', col:'#E8B86D' },
@@ -198,8 +231,8 @@ var SEQ = [
   { name:'Shishupalasana',  san:'\u0936\u093f\u0936\u0941\u092a\u093e\u0932\u093e\u0938\u0928', sub:'Left Leg',           dur:150,  icon:'\uD83C\uDF3F', col:'#7EB88A' },
   { name:'Nadivibhajana',   san:'\u0928\u093E\u0921\u0940 \u0935\u093F\u092D\u093E\u091C\u0928', sub:'8 minutes',          dur:480,  icon:'\uD83C\uDF19', col:'#7B9EC8' },
   { name:'Sukhasana',       san:'\u0938\u0941\u0916\u093E\u0938\u0928',             sub:'Easy Pose - 7 min',  dur:420,  icon:'\u2600\uFE0F', col:'#E8B86D' },
-  { name:'OM Chanting',     san:'\u0950',                                               sub:'21 times, 12s gap',  dur:null, icon:'\uD83D\uDD49\uFE0F', col:'#C8849A', om:true, auto:true },
-  { name:'Vipareeta Swasa', san:'\u0935\u093F\u092A\u0930\u0940\u0924 \u0936\u094D\u0935\u093E\u0938', sub:'Reverse Breathing',  dur:180,  icon:'\uD83C\uDF2C\uFE0F', col:'#9E7EC8' },
+  { name:'AUM Chanting',     san:'\u0950',                                               sub:'21 AUMs - mic listens',  dur:null, icon:'\uD83D\uDD49\uFE0F', col:'#C8849A', om:true, auto:true },
+  { name:'Vipareeta Swasa - Fast Breathing', san:'\u0935\u093F\u092A\u0930\u0940\u0924 \u0936\u094D\u0935\u093E\u0938', sub:'3 minutes',  dur:180,  icon:'\uD83C\uDF2C\uFE0F', col:'#9E7EC8' },
   { name:'Bandhas',         san:'\u092C\u0902\u0927',                                              sub:'2 minutes',          dur:120,  icon:'\uD83E\uDDD8', col:'#C8906D' },
   
   { name:'Meditation',      san:'\u0927\u094D\u092F\u093E\u0928',                   sub:'Rest - 7 minutes',   dur:420,  icon:'\uD83C\uDF19', col:'#7B9EC8' }
@@ -266,6 +299,31 @@ function goStep(idx) {
   if (s.om) { startCount(idx); } else { startTimer(s, idx); }
 }
 
+// Global end time so visibilitychange can access it
+var activeEndTime = 0;
+var activeStepDur = 0;
+var activeStepIdx = -1;
+
+// When screen wakes up, check clock and advance if timer expired
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && activeEndTime > 0) {
+    var remaining = Math.round((activeEndTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+      // Timer finished while phone was asleep - advance now
+      activeEndTime = 0;
+      clearInterval(ticker);
+      bell();
+      goStep(activeStepIdx + 1);
+    } else {
+      // Update display immediately on wake
+      timeLeft = remaining;
+      document.getElementById('t-time').textContent = fmt(timeLeft);
+      setRing('progress-ring', timeLeft / activeStepDur, 
+        SEQ[activeStepIdx] ? SEQ[activeStepIdx].col : '#E8B86D');
+    }
+  }
+});
+
 function startTimer(s, idx) {
   showPage('pg-timer');
   makeDots('dots-timer', idx);
@@ -277,14 +335,22 @@ function startTimer(s, idx) {
   document.getElementById('t-lbl').textContent = 'Step ' + (idx+1) + ' of ' + SEQ.length;
   document.getElementById('btn-done').style.display = (idx === 3) ? 'block' : 'none';
   timeLeft = s.dur;
+  activeEndTime = Date.now() + s.dur * 1000;
+  activeStepDur = s.dur;
+  activeStepIdx = idx;
   document.getElementById('t-time').textContent = fmt(timeLeft);
   setRing('progress-ring', 1, s.col);
+  clearInterval(ticker);
   ticker = setInterval(function() {
-    timeLeft--;
+    timeLeft = Math.max(0, Math.round((activeEndTime - Date.now()) / 1000));
     document.getElementById('t-time').textContent = fmt(timeLeft);
     setRing('progress-ring', timeLeft / s.dur, s.col);
-    if (timeLeft <= 0) { clearInterval(ticker); setTimeout(function(){ goStep(idx+1); }, 700); }
-  }, 1000);
+    if (timeLeft <= 0) {
+      clearInterval(ticker);
+      activeEndTime = 0;
+      setTimeout(function(){ goStep(idx+1); }, 700);
+    }
+  }, 500);
 }
 
 function startCount(idx) {
@@ -292,18 +358,98 @@ function startCount(idx) {
   makeDots('dots-count', idx);
   document.getElementById('c-lbl').textContent = 'Step ' + (idx+1) + ' of ' + SEQ.length;
   document.getElementById('btn-count').style.display = 'none';
-  document.getElementById('c-hint').style.display = 'none';
+  document.getElementById('c-hint').style.display = 'block';
+  document.getElementById('c-hint').textContent = 'Requesting mic...';
   document.getElementById('c-gap').style.display = 'none';
   document.getElementById('count-ring').setAttribute('stroke-dashoffset','440');
   document.getElementById('c-num').textContent = '';
-  cNum = 1;
-  // Wait 12s then ring and show count 1, repeat for 21 counts
-  runOmCount(idx);
+  cNum = 1; wasSpeaking = false; aumState = 'idle';
+  startMic(idx);
 }
 
-function runOmCount(idx) {
-  // Show countdown gap
-  cGap = 12;
+var micStream=null,micAnalyser=null,micCtx=null,aumState='idle';
+var silenceTimer=null,aumTimeout=null,wasSpeaking=false;
+
+function startMic(idx) {
+  if (!navigator.mediaDevices) { runAutoAUM(idx); return; }
+  navigator.mediaDevices.getUserMedia({audio:true,video:false})
+  .then(function(stream) {
+    micStream = stream;
+    micCtx = new (window.AudioContext||window.webkitAudioContext)();
+    var src = micCtx.createMediaStreamSource(stream);
+    micAnalyser = micCtx.createAnalyser();
+    micAnalyser.fftSize = 512;
+    micAnalyser.smoothingTimeConstant = 0.3;
+    src.connect(micAnalyser);
+    document.getElementById('c-hint').textContent = 'Chant AUM — mic is listening';
+    aumState = 'listening';
+    listenLoop(idx);
+  })
+  .catch(function() {
+    document.getElementById('c-hint').textContent = 'No mic — auto 20s mode';
+    runAutoAUM(idx);
+  });
+}
+
+function stopMic() {
+  aumState = 'idle';
+  clearTimeout(silenceTimer); clearTimeout(aumTimeout);
+  if (micStream) { micStream.getTracks().forEach(function(t){t.stop();}); micStream=null; }
+  if (micCtx) { try{micCtx.close();}catch(e){} micCtx=null; }
+  micAnalyser = null;
+}
+
+function getVol() {
+  if (!micAnalyser) return 0;
+  var d = new Uint8Array(micAnalyser.frequencyBinCount);
+  micAnalyser.getByteFrequencyData(d);
+  var s=0; for(var i=0;i<d.length;i++) s+=d[i];
+  return s/d.length;
+}
+
+function listenLoop(idx) {
+  if (aumState === 'idle') return;
+  var vol = getVol();
+  var thr = 18;
+  if (!wasSpeaking && vol > thr) {
+    wasSpeaking = true;
+    clearTimeout(silenceTimer); clearTimeout(aumTimeout);
+    document.getElementById('c-hint').textContent = 'Chanting AUM...';
+    aumTimeout = setTimeout(function(){ if(wasSpeaking && aumState!=='idle') onAUMDone(idx); }, 20000);
+  } else if (wasSpeaking && vol < thr) {
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(function(){ if(aumState!=='idle') onAUMDone(idx); }, 600);
+  }
+  if (aumState !== 'idle') requestAnimationFrame(function(){ listenLoop(idx); });
+}
+
+function onAUMDone(idx) {
+  clearTimeout(silenceTimer); clearTimeout(aumTimeout);
+  wasSpeaking = false;
+  bell();
+  document.getElementById('c-num').textContent = cNum;
+  document.getElementById('count-ring').setAttribute('stroke-dashoffset',(440*(1-cNum/21)).toFixed(1));
+  if (cNum >= 21) {
+    document.getElementById('c-hint').textContent = 'All 21 AUMs complete!';
+    stopMic();
+    setTimeout(function(){bell();},800);
+    setTimeout(function(){goStep(idx+1);},2500);
+    return;
+  }
+  document.getElementById('c-hint').textContent = 'AUM '+cNum+' done ✔  Chant next...';
+  cNum++;
+  document.getElementById('c-num').textContent = cNum;
+  setTimeout(function(){
+    if (aumState !== 'idle') {
+      wasSpeaking = false;
+      document.getElementById('c-hint').textContent = 'Chant AUM — mic is listening';
+      listenLoop(idx);
+    }
+  }, 1500);
+}
+
+function runAutoAUM(idx) {
+  cGap = 20;
   document.getElementById('c-gap').style.display = 'block';
   document.getElementById('c-gap-num').textContent = cGap;
   clearInterval(gTicker);
@@ -312,40 +458,30 @@ function runOmCount(idx) {
     document.getElementById('c-gap-num').textContent = cGap;
     if (cGap <= 0) {
       clearInterval(gTicker);
-      // Ring bell
       bell();
-      // Show count number
       document.getElementById('c-num').textContent = cNum;
       document.getElementById('c-gap').style.display = 'none';
-      // Update ring progress
-      document.getElementById('count-ring').setAttribute('stroke-dashoffset', (440*(1-cNum/21)).toFixed(1));
-      if (cNum >= 21) {
-        // All done
-        setTimeout(function(){ goStep(idx+1); }, 2000);
-      } else {
-        cNum++;
-        runOmCount(idx);
-      }
+      document.getElementById('count-ring').setAttribute('stroke-dashoffset',(440*(1-cNum/21)).toFixed(1));
+      if (cNum >= 21) { setTimeout(function(){goStep(idx+1);},2000); return; }
+      cNum++;
+      runAutoAUM(idx);
     }
-  }, 1000);
-}
-
-function skipStep() {
-  clearInterval(ticker);
-  goStep(step + 1);
+  },1000);
 }
 
 function doCount() {}
 
 // ── BUTTON WIRING ─────────────────────────────────────────────
 document.getElementById('btn-begin').addEventListener('click', function() {
+  startKeepAlive();
   goStep(0);
 });
 document.getElementById('btn-test').addEventListener('click', function() {
   bell();
 });
 document.getElementById('btn-step6').addEventListener('click', function() {
-  goStep(5);
+  startKeepAlive();
+  goStep(SEQ.findIndex(function(s){return s.om;}));
 });
 document.getElementById('btn-count').addEventListener('click', doCount);
 document.getElementById('btn-again').addEventListener('click', function() {
