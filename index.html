@@ -77,7 +77,6 @@ body{min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,#0d0d1a,
   <p class="total" id="total-time"></p>
   <button class="btn-main" id="btn-begin">Begin</button>
   <button class="btn-test" id="btn-test">&#128276; Test Bell</button>
-  <button class="btn-test" id="btn-step6" style="margin-top:10px;border-color:rgba(200,132,154,0.7);color:#C8849A">&#x0950; Test AUM Step</button>
 </div>
 
 <!-- TIMER STEP -->
@@ -232,7 +231,7 @@ var SEQ = [
   { name:'Nadivibhajana',   san:'\u0928\u093E\u0921\u0940 \u0935\u093F\u092D\u093E\u091C\u0928', sub:'8 minutes',          dur:480,  icon:'\uD83C\uDF19', col:'#7B9EC8' },
   { name:'Sukhasana',       san:'\u0938\u0941\u0916\u093E\u0938\u0928',             sub:'Easy Pose - 7 min',  dur:420,  icon:'\u2600\uFE0F', col:'#E8B86D' },
   { name:'Wait',           san:'',          sub:'1 minute silence',  dur:60,   icon:'\u23F3', col:'#7B9EC8' },
-  { name:'AUM Chanting',     san:'\u0950',                                               sub:'21 AUMs - mic listens',  dur:null, icon:'\uD83D\uDD49\uFE0F', col:'#C8849A', om:true, auto:true },
+  { name:'AUM Chanting',     san:'\u0950',                                               sub:'7 minutes',              dur:420,  icon:'\uD83D\uDD49\uFE0F', col:'#C8849A' },
   { name:'Vipareeta Swasa - Fast Breathing', san:'\u0935\u093F\u092A\u0930\u0940\u0924 \u0936\u094D\u0935\u093E\u0938', sub:'3 minutes',  dur:180,  icon:'\uD83C\uDF2C\uFE0F', col:'#9E7EC8' },
   { name:'Bandhas',         san:'\u092C\u0902\u0927',                                              sub:'2 minutes',          dur:120,  icon:'\uD83E\uDDD8', col:'#C8906D' },
   
@@ -479,10 +478,6 @@ document.getElementById('btn-begin').addEventListener('click', function() {
 });
 document.getElementById('btn-test').addEventListener('click', function() {
   bell();
-});
-document.getElementById('btn-step6').addEventListener('click', function() {
-  startKeepAlive();
-  goStep(SEQ.findIndex(function(s){return s.om;}));
 });
 document.getElementById('btn-count').addEventListener('click', doCount);
 document.getElementById('btn-again').addEventListener('click', function() {
