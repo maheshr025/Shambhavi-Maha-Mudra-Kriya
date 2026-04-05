@@ -190,37 +190,72 @@ function bell() {
   });
 }
 
-// ── KEEP ALIVE (prevents browser throttling when screen off) ──
-// Plays a silent buffer every second to keep AudioContext active
-// This is the ONLY reliable way to keep JS timers running on Android
-var keepAliveNode = null;
+// ── KEEP ALIVE ──────────────────────────────────────────────
+// Uses a looping AudioBufferSource (most reliable on Android)
+// A looping silent audio node prevents Chrome from throttling JS
+var keepAliveCtx = null;
+var keepAliveSrc = null;
 
 function startKeepAlive() {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') ctx.resume();
-  // Schedule a silent 1-sample buffer to repeat every second
-  // This tricks Android into thinking audio is active -> no throttling
-  function scheduleSilence() {
-    if (!ctx) return;
-    var buf = ctx.createBuffer(1, 1, ctx.sampleRate);
-    var src = ctx.createBufferSource();
-    src.buffer = buf;
-    var gain = ctx.createGain();
-    gain.gain.value = 0.001; // near-silent
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    src.start(ctx.currentTime);
-    src.onended = function() {
-      setTimeout(scheduleSilence, 900);
-    };
-  }
-  scheduleSilence();
-  console.log('KeepAlive started');
+  try {
+    if (!keepAliveCtx) {
+      keepAliveCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (keepAliveCtx.state === 'suspended') keepAliveCtx.resume();
+
+    // Create a 2-second silent buffer that loops forever
+    var sr = keepAliveCtx.sampleRate;
+    var buf = keepAliveCtx.createBuffer(1, sr * 2, sr);
+    // Fill with tiny non-zero values so Android doesn't optimise it away
+    var ch = buf.getChannelData(0);
+    for (var i = 0; i < ch.length; i++) ch[i] = 0.0001 * Math.sin(i);
+
+    if (keepAliveSrc) { try { keepAliveSrc.stop(); } catch(e) {} }
+    keepAliveSrc = keepAliveCtx.createBufferSource();
+    keepAliveSrc.buffer = buf;
+    keepAliveSrc.loop = true; // loops forever - no gaps, no throttling
+    var gain = keepAliveCtx.createGain();
+    gain.gain.value = 0.001; // essentially silent
+    keepAliveSrc.connect(gain);
+    gain.connect(keepAliveCtx.destination);
+    keepAliveSrc.start(0);
+    console.log('KeepAlive looping started');
+  } catch(e) { console.log('keepAlive err:', e); }
 }
 
 function stopKeepAlive() {
-  // Nothing to explicitly stop - just let it fade
-  // It will naturally stop after a few cycles when we don't restart
+  try { if (keepAliveSrc) keepAliveSrc.stop(); } catch(e) {}
+  keepAliveSrc = null;
+}
+
+// Also use setTimeout chain as backup ticker independent of setInterval
+var backupTickerRunning = false;
+function startBackupTicker() {
+  if (backupTickerRunning) return;
+  backupTickerRunning = true;
+  function tick() {
+    if (!backupTickerRunning) return;
+    // Check if a timer has expired
+    if (activeEndTime > 0) {
+      var remaining = Math.round((activeEndTime - Date.now()) / 1000);
+      if (remaining <= 0) {
+        activeEndTime = 0;
+        clearInterval(ticker);
+        bell();
+        goStep(activeStepIdx + 1);
+        setTimeout(tick, 1000);
+        return;
+      }
+      // Update display even if screen is on
+      timeLeft = remaining;
+      var el = document.getElementById('t-time');
+      if (el) el.textContent = fmt(timeLeft);
+      var s = SEQ[activeStepIdx];
+      if (s) setRing('progress-ring', timeLeft / activeStepDur, s.col);
+    }
+    setTimeout(tick, 1000);
+  }
+  setTimeout(tick, 1000);
 }
 
 // ── SEQUENCE ──────────────────────────────────────────────────
@@ -474,6 +509,7 @@ function doCount() {}
 // ── BUTTON WIRING ─────────────────────────────────────────────
 document.getElementById('btn-begin').addEventListener('click', function() {
   startKeepAlive();
+  startBackupTicker();
   goStep(0);
 });
 document.getElementById('btn-test').addEventListener('click', function() {
