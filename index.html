@@ -150,8 +150,11 @@ var ctx = null;
 
 function bell() {
   try {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
+    // Use keepAliveCtx if available (it's already unlocked and running)
+    var bc = keepAliveCtx || ctx;
+    if (!bc) bc = ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (bc.state === 'suspended') bc.resume();
+    ctx = bc;
     var t = ctx.currentTime;
     var freqs = [800, 1260, 1860, 2450, 3050];
     var gains = [0.8, 0.55, 0.3, 0.18, 0.09];
@@ -506,7 +509,16 @@ function runAutoAUM(idx) {
 
 function doCount() {}
 
+function skipStep() {
+  clearInterval(ticker);
+  activeEndTime = 0;
+  goStep(activeStepIdx + 1);
+}
+
 // ── BUTTON WIRING ─────────────────────────────────────────────
+document.getElementById('btn-done').addEventListener('click', function() {
+  skipStep();
+});
 document.getElementById('btn-begin').addEventListener('click', function() {
   startKeepAlive();
   startBackupTicker();
